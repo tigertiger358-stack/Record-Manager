@@ -1,0 +1,231 @@
+
+name: Build Record Manager APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Create Android Project
+        run: |
+          mkdir -p app/src/main/java/com/recordmanager/app
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "RecordManager"
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.recordmanager.app'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.recordmanager.app'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="Record Manager"
+                  android:allowBackup="false"
+                  android:supportsRtl="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#2563EB</item>
+                  <item name="android:statusBarColor">#173B64</item>
+                  <item name="android:navigationBarColor">#173B64</item>
+                  <item name="android:windowLightStatusBar">false</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/recordmanager/app/MainActivity.java <<'EOF'
+          package com.recordmanager.app;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.view.Gravity;
+          import android.widget.*;
+
+          public class MainActivity extends Activity {
+
+              LinearLayout layout;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  ScrollView scroll = new ScrollView(this);
+                  layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setPadding(24, 30, 24, 24);
+                  layout.setBackgroundColor(Color.rgb(245,248,252));
+                  scroll.addView(layout);
+                  setContentView(scroll);
+
+                  showHome();
+              }
+
+              TextView text(String value, int size, int color) {
+                  TextView t = new TextView(this);
+                  t.setText(value);
+                  t.setTextSize(size);
+                  t.setTextColor(color);
+                  t.setPadding(8,12,8,12);
+                  return t;
+              }
+
+              void button(String label, Runnable action) {
+                  Button b = new Button(this);
+                  b.setText(label);
+                  b.setAllCaps(false);
+                  b.setTextSize(16);
+                  b.setOnClickListener(v -> action.run());
+                  layout.addView(b);
+              }
+
+              void showHome() {
+                  layout.removeAllViews();
+
+                  TextView title = text("Record Manager", 28, Color.WHITE);
+                  title.setGravity(Gravity.CENTER);
+                  title.setBackgroundColor(Color.rgb(23,59,100));
+                  layout.addView(title);
+
+                  TextView welcome = text(
+                      "Welcome!\\nYour personal records, organized and secure.",
+                      18, Color.rgb(30,50,80));
+                  layout.addView(welcome);
+
+                  button("My Profile", () -> showPage("My Profile"));
+                  button("New Record", () -> showPage("New Record"));
+                  button("Old Records", () -> showPage("Old Records"));
+                  button("CNIC Search", () -> showPage("CNIC Search"));
+                  button("Mobile Search", () -> showPage("Mobile Search"));
+                  button("Nearby Social", () -> showPage("Nearby Social"));
+                  button("Support", () -> showPage("Support"));
+                  button("Settings", () -> showPage("Settings"));
+
+                  layout.addView(text(
+                      "Initial version 1.0",
+                      13, Color.GRAY));
+              }
+
+              void showPage(String name) {
+                  layout.removeAllViews();
+                  layout.addView(text(name, 26, Color.rgb(23,59,100)));
+
+                  if (name.equals("New Record")) {
+                      field("Full Name");
+                      field("CNIC Number");
+                      field("Mobile Number");
+                      field("Date of Birth");
+                      field("Address");
+                      field("Marital Status");
+                      field("Vehicle Details");
+                      field("Additional Notes");
+                  } else if (name.equals("My Profile")) {
+                      field("Full Name");
+                      field("Date of Birth");
+                      field("CNIC Number");
+                      field("Address");
+                      field("Mobile Number");
+                  } else if (name.contains("Search")) {
+                      field(name.equals("CNIC Search")
+                          ? "Enter CNIC Number"
+                          : "Enter Mobile Number");
+                  } else {
+                      layout.addView(text(
+                          "This feature will be added in the next development steps.",
+                          16, Color.DKGRAY));
+                  }
+
+                  button("Back to Home", () -> showHome());
+              }
+
+              void field(String hint) {
+                  EditText input = new EditText(this);
+                  input.setHint(hint);
+                  input.setSingleLine(true);
+                  layout.addView(input);
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Record-Manager-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          
