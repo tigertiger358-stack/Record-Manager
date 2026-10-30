@@ -60,17 +60,15 @@ jobs:
           plugins {
               id 'com.android.application'
           }
-
           android {
               namespace 'com.recordmanager.app'
               compileSdk 35
-
               defaultConfig {
                   applicationId 'com.recordmanager.app'
                   minSdk 23
                   targetSdk 35
-                  versionCode 1
-                  versionName '1.0'
+                  versionCode 2
+                  versionName '1.1'
               }
           }
           EOF
@@ -78,10 +76,9 @@ jobs:
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application
-                  android:theme="@style/AppTheme"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
                   android:label="Record Manager"
-                  android:allowBackup="false"
-                  android:supportsRtl="true">
+                  android:usesCleartextTraffic="false">
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -94,128 +91,235 @@ jobs:
           </manifest>
           EOF
 
-          cat > app/src/main/res/values/styles.xml <<'EOF'
-          <resources>
-              <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:colorAccent">#2563EB</item>
-                  <item name="android:statusBarColor">#173B64</item>
-                  <item name="android:navigationBarColor">#173B64</item>
-                  <item name="android:windowLightStatusBar">false</item>
-              </style>
-          </resources>
-          EOF
-
           cat > app/src/main/java/com/recordmanager/app/MainActivity.java <<'EOF'
           package com.recordmanager.app;
 
-          import android.app.Activity;
-          import android.os.Bundle;
+          import android.app.*;
+          import android.os.*;
           import android.graphics.Color;
-          import android.view.Gravity;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.content.*;
+          import android.view.*;
           import android.widget.*;
+          import android.text.*;
+          import org.json.*;
 
           public class MainActivity extends Activity {
+              LinearLayout root, body;
+              EditText search;
+              int blue = Color.rgb(24,65,110);
+              int pale = Color.rgb(242,247,253);
+              android.content.SharedPreferences prefs;
 
-              LinearLayout layout;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-
-                  ScrollView scroll = new ScrollView(this);
-                  layout = new LinearLayout(this);
-                  layout.setOrientation(LinearLayout.VERTICAL);
-                  layout.setPadding(24, 30, 24, 24);
-                  layout.setBackgroundColor(Color.rgb(245,248,252));
-                  scroll.addView(layout);
-                  setContentView(scroll);
-
-                  showHome();
+              public void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  prefs = getSharedPreferences("records", MODE_PRIVATE);
+                  home();
               }
 
-              TextView text(String value, int size, int color) {
+              GradientDrawable shape(int color, int radius) {
+                  GradientDrawable d = new GradientDrawable();
+                  d.setColor(color);
+                  d.setCornerRadius(radius);
+                  return d;
+              }
+
+              TextView text(String s, int size, int color) {
                   TextView t = new TextView(this);
-                  t.setText(value);
+                  t.setText(s);
                   t.setTextSize(size);
                   t.setTextColor(color);
-                  t.setPadding(8,12,8,12);
+                  t.setPadding(12,10,12,10);
                   return t;
               }
 
-              void button(String label, Runnable action) {
+              void setup(String title) {
+                  root = new LinearLayout(this);
+                  root.setOrientation(1);
+                  root.setBackgroundColor(pale);
+                  setContentView(root);
+
+                  TextView bar = text("  RECORD MANAGER     |     " + title, 20, Color.WHITE);
+                  bar.setTypeface(null, Typeface.BOLD);
+                  bar.setBackgroundColor(blue);
+                  root.addView(bar, new LinearLayout.LayoutParams(-1,62));
+
+                  ScrollView scroll = new ScrollView(this);
+                  body = new LinearLayout(this);
+                  body.setOrientation(1);
+                  body.setPadding(16,14,16,20);
+                  scroll.addView(body);
+                  root.addView(scroll);
+              }
+
+              void heading(String s) {
+                  TextView t = text(s,25,blue);
+                  t.setTypeface(null,Typeface.BOLD);
+                  body.addView(t);
+              }
+
+              void button(String s, Runnable action) {
                   Button b = new Button(this);
-                  b.setText(label);
+                  b.setText(s);
+                  b.setTextColor(Color.WHITE);
                   b.setAllCaps(false);
-                  b.setTextSize(16);
+                  b.setTextSize(17);
+                  b.setBackground(shape(blue,18));
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,58);
+                  p.setMargins(0,8,0,8);
+                  body.addView(b,p);
                   b.setOnClickListener(v -> action.run());
-                  layout.addView(b);
               }
 
-              void showHome() {
-                  layout.removeAllViews();
-
-                  TextView title = text("Record Manager", 28, Color.WHITE);
-                  title.setGravity(Gravity.CENTER);
-                  title.setBackgroundColor(Color.rgb(23,59,100));
-                  layout.addView(title);
-
-                  TextView welcome = text(
-                      "Welcome!\\nYour personal records, organized and secure.",
-                      18, Color.rgb(30,50,80));
-                  layout.addView(welcome);
-
-                  button("My Profile", () -> showPage("My Profile"));
-                  button("New Record", () -> showPage("New Record"));
-                  button("Old Records", () -> showPage("Old Records"));
-                  button("CNIC Search", () -> showPage("CNIC Search"));
-                  button("Mobile Search", () -> showPage("Mobile Search"));
-                  button("Nearby Social", () -> showPage("Nearby Social"));
-                  button("Support", () -> showPage("Support"));
-                  button("Settings", () -> showPage("Settings"));
-
-                  layout.addView(text(
-                      "Initial version 1.0",
-                      13, Color.GRAY));
+              EditText field(String hint) {
+                  EditText e = new EditText(this);
+                  e.setHint(hint);
+                  e.setTextSize(16);
+                  e.setSingleLine(false);
+                  e.setPadding(14,10,14,10);
+                  e.setBackground(shape(Color.WHITE,12));
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2);
+                  p.setMargins(0,6,0,6);
+                  body.addView(e,p);
+                  return e;
               }
 
-              void showPage(String name) {
-                  layout.removeAllViews();
-                  layout.addView(text(name, 26, Color.rgb(23,59,100)));
-
-                  if (name.equals("New Record")) {
-                      field("Full Name");
-                      field("CNIC Number");
-                      field("Mobile Number");
-                      field("Date of Birth");
-                      field("Address");
-                      field("Marital Status");
-                      field("Vehicle Details");
-                      field("Additional Notes");
-                  } else if (name.equals("My Profile")) {
-                      field("Full Name");
-                      field("Date of Birth");
-                      field("CNIC Number");
-                      field("Address");
-                      field("Mobile Number");
-                  } else if (name.contains("Search")) {
-                      field(name.equals("CNIC Search")
-                          ? "Enter CNIC Number"
-                          : "Enter Mobile Number");
-                  } else {
-                      layout.addView(text(
-                          "This feature will be added in the next development steps.",
-                          16, Color.DKGRAY));
-                  }
-
-                  button("Back to Home", () -> showHome());
+              void home() {
+                  setup("HOME");
+                  heading("Welcome!");
+                  body.addView(text("Your personal records, organized and secure.",17,Color.DKGRAY));
+                  button("👤  My Profile", () -> profile());
+                  button("＋  New Record", () -> newRecord());
+                  button("▤  Old Records", () -> oldRecords(""));
+                  button("⌕  CNIC Search", () -> oldRecords("cnic"));
+                  button("☎  Mobile Search", () -> oldRecords("mobile"));
+                  button("◎  Nearby Social", () -> message("Nearby Social", "This feature is not available yet."));
+                  button("Support", () -> message("Support", "Support service will be added in a future update."));
+                  button("⚙  Settings", () -> message("Settings", "More settings will be added later."));
+                  body.addView(text("Version 1.1  •  Records are stored on this phone",13,Color.GRAY));
               }
 
-              void field(String hint) {
-                  EditText input = new EditText(this);
-                  input.setHint(hint);
-                  input.setSingleLine(true);
-                  layout.addView(input);
+              void newRecord() {
+                  setup("NEW RECORD");
+                  heading("Add a Person");
+                  EditText name = field("Full Name *");
+                  EditText cnic = field("CNIC Number");
+                  EditText mobile = field("Mobile Number");
+                  EditText dob = field("Date of Birth");
+                  EditText address = field("Address");
+                  EditText marital = field("Marital Status");
+                  EditText notes = field("Notes");
+                  button("SAVE RECORD", () -> {
+                      String n = name.getText().toString().trim();
+                      if(n.isEmpty()) {
+                          name.setError("Name is required");
+                          return;
+                      }
+                      try {
+                          JSONArray a = new JSONArray(prefs.getString("data","[]"));
+                          JSONObject o = new JSONObject();
+                          o.put("name",n);
+                          o.put("cnic",cnic.getText().toString());
+                          o.put("mobile",mobile.getText().toString());
+                          o.put("dob",dob.getText().toString());
+                          o.put("address",address.getText().toString());
+                          o.put("marital",marital.getText().toString());
+                          o.put("notes",notes.getText().toString());
+                          a.put(o);
+                          prefs.edit().putString("data",a.toString()).apply();
+                          new AlertDialog.Builder(this)
+                              .setMessage("Record saved on this phone.")
+                              .setPositiveButton("OK",(d,w)->oldRecords(""))
+                              .show();
+                      } catch(Exception ex) {
+                          message("Error","Could not save this record.");
+                      }
+                  });
+                  button("BACK TO HOME", () -> home());
+              }
+
+              void oldRecords(String filter) {
+                  setup("OLD RECORDS");
+                  heading("Saved Records");
+                  search = field("Search name, CNIC or mobile");
+                  LinearLayout results = new LinearLayout(this);
+                  results.setOrientation(1);
+                  body.addView(results);
+
+                  Runnable show = () -> {
+                      results.removeAllViews();
+                      try {
+                          JSONArray a = new JSONArray(prefs.getString("data","[]"));
+                          String q = search.getText().toString().toLowerCase();
+                          for(int i=a.length()-1;i>=0;i--) {
+                              JSONObject o = a.getJSONObject(i);
+                              String all = o.optString("name")+" "+o.optString("cnic")+" "+o.optString("mobile");
+                              if(!all.toLowerCase().contains(q)) continue;
+                              TextView card = text(
+                                  o.optString("name")+
+                                  "\nCNIC: "+o.optString("cnic")+
+                                  "\nMobile: "+o.optString("mobile")+
+                                  "\nDOB: "+o.optString("dob")+
+                                  "\nAddress: "+o.optString("address")+
+                                  "\nMarital Status: "+o.optString("marital")+
+                                  "\nNotes: "+o.optString("notes"),16,blue);
+                              card.setBackground(shape(Color.WHITE,14));
+                              LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2);
+                              p.setMargins(0,6,0,10);
+                              results.addView(card,p);
+                              final int index=i;
+                              Button del = new Button(this);
+                              del.setText("Delete this record");
+                              del.setOnClickListener(v -> new AlertDialog.Builder(this)
+                                  .setMessage("Delete this record?")
+                                  .setNegativeButton("Cancel",null)
+                                  .setPositiveButton("Delete",(d,w)->{
+                                      try {
+                                          JSONArray old = new JSONArray(prefs.getString("data","[]"));
+                                          JSONArray fresh = new JSONArray();
+                                          for(int j=0;j<old.length();j++) if(j!=index) fresh.put(old.get(j));
+                                          prefs.edit().putString("data",fresh.toString()).apply();
+                                          oldRecords("");
+                                      } catch(Exception ex) {}
+                                  }).show());
+                              results.addView(del);
+                          }
+                          if(results.getChildCount()==0)
+                              results.addView(text("No matching records found.",16,Color.GRAY));
+                      } catch(Exception ex) {}
+                  };
+                  search.addTextChangedListener(new TextWatcher() {
+                      public void beforeTextChanged(CharSequence s,int st,int c,int a) {}
+                      public void onTextChanged(CharSequence s,int st,int before,int count) { show.run(); }
+                      public void afterTextChanged(Editable e) {}
+                  });
+                  show.run();
+                  button("＋  ADD NEW RECORD", () -> newRecord());
+                  button("BACK TO HOME", () -> home());
+              }
+
+              void profile() {
+                  setup("MY PROFILE");
+                  heading("My Profile");
+                  EditText name = field("Your Name");
+                  EditText mobile = field("Your Mobile Number");
+                  name.setText(prefs.getString("profile_name",""));
+                  mobile.setText(prefs.getString("profile_mobile",""));
+                  button("SAVE PROFILE", () -> {
+                      prefs.edit()
+                          .putString("profile_name",name.getText().toString())
+                          .putString("profile_mobile",mobile.getText().toString())
+                          .apply();
+                      message("Saved","Your profile has been saved on this phone.");
+                  });
+                  button("BACK TO HOME", () -> home());
+              }
+
+              void message(String title,String msg) {
+                  new AlertDialog.Builder(this)
+                      .setTitle(title).setMessage(msg)
+                      .setPositiveButton("OK",null).show();
               }
           }
           EOF
@@ -228,4 +332,3 @@ jobs:
         with:
           name: Record-Manager-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          
