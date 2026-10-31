@@ -158,7 +158,6 @@ jobs:
                   t.setTypeface(null,Typeface.BOLD);
                   body.addView(t);
               }
-
 void button(String s, Runnable action) {
     Button b = new Button(this);
     b.setText(s);
@@ -177,9 +176,7 @@ void button(String s, Runnable action) {
     p.setMargins(0, 8, 0, 8);
     body.addView(b, p);
 }
-
-
-              EditText field(String hint) {
+        EditText field(String hint) {
                   EditText e = new EditText(this);
                   e.setHint(hint);
                   e.setTextSize(16);
