@@ -159,18 +159,25 @@ jobs:
                   body.addView(t);
               }
 
-              void button(String s, Runnable action) {
-                  Button b = new Button(this);
-                  b.setText(s);
-                  b.setTextColor(Color.WHITE);
-                  b.setAllCaps(false);
-                  b.setTextSize(17);
-                  b.setBackground(shape(blue,18));
-                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,58);
-                  p.setMargins(0,8,0,8);
-                  body.addView(b,p);
-                  b.setOnClickListener(v -> action.run());
-              }
+void button(String s, Runnable action) {
+    Button b = new Button(this);
+    b.setText(s);
+    b.setTextColor(Color.WHITE);
+    b.setTextSize(17);
+    b.setAllCaps(false);
+    b.setGravity(Gravity.CENTER);
+    b.setPadding(12, 8, 12, 8);
+    b.setMinHeight(58);
+    b.setBackground(shape(blue, 18));
+    b.setBackgroundTintList(null);
+    b.setOnClickListener(v -> action.run());
+
+    LinearLayout.LayoutParams p =
+        new LinearLayout.LayoutParams(-1, 60);
+    p.setMargins(0, 8, 0, 8);
+    body.addView(b, p);
+}
+
 
               EditText field(String hint) {
                   EditText e = new EditText(this);
