@@ -1,400 +1,177 @@
-
-name: Build Record Manager APK
+name: Build Record Manager Ultimate APK
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
 
-      - name: Create Android Project
+      - name: Create Android project
+        shell: bash
         run: |
           mkdir -p app/src/main/java/com/recordmanager/app
-
+          mkdir -p app/src/main/res/values
           cat > settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           rootProject.name = "RecordManager"
-          include ':app'
+          include(":app")
           EOF
-
           cat > build.gradle <<'EOF'
           plugins {
               id 'com.android.application' version '8.7.3' apply false
           }
           EOF
-
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
           cat > app/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-
+          plugins { id 'com.android.application' }
           android {
               namespace 'com.recordmanager.app'
               compileSdk 35
-
               defaultConfig {
                   applicationId 'com.recordmanager.app'
                   minSdk 23
                   targetSdk 35
-                  versionCode 3
-                  versionName '1.2'
+                  versionCode 4
+                  versionName '2.0'
               }
           }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.7.0'
+              implementation 'androidx.core:core:1.15.0'
+              implementation 'androidx.biometric:biometric:1.1.0'
+              implementation 'com.google.zxing:core:3.5.3'
+          }
           EOF
-
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="colorPrimary">#123C72</item>
+                  <item name="colorPrimaryDark">#0B2850</item>
+                  <item name="colorAccent">#19A7CE</item>
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:statusBarColor">#0B2850</item>
+                  <item name="android:navigationBarColor">#071B36</item>
+                  <item name="android:windowLightStatusBar">false</item>
+              </style>
+          </resources>
+          EOF
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application
-                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
-                  android:label="Record Manager">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.VIBRATE"/>
+              <uses-feature android:name="android.hardware.fingerprint" android:required="false"/>
+              <application android:allowBackup="false" android:label="Record Manager" android:theme="@style/AppTheme" android:supportsRtl="true">
+                  <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+                  <receiver android:name=".ReminderReceiver" android:exported="false"/>
               </application>
           </manifest>
           EOF
-
-          cat > app/src/main/java/com/recordmanager/app/MainActivity.java <<'EOF'
+          cat > app/src/main/java/com/recordmanager/app/ReminderReceiver.java <<'EOF'
           package com.recordmanager.app;
-
           import android.app.*;
-          import android.os.*;
-          import android.graphics.Color;
-          import android.graphics.Typeface;
-          import android.graphics.drawable.GradientDrawable;
-          import android.view.*;
-          import android.widget.*;
-          import android.text.*;
           import android.content.*;
-          import org.json.*;
-
-          public class MainActivity extends Activity {
-
-              LinearLayout root, body;
-              SharedPreferences prefs;
-              int blue = Color.rgb(24,65,110);
-              int pale = Color.rgb(242,247,253);
-              int dark = Color.rgb(35,48,65);
-
-              public void onCreate(Bundle b) {
-                  super.onCreate(b);
-                  getWindow().setStatusBarColor(blue);
-                  getWindow().setNavigationBarColor(Color.BLACK);
-                  prefs = getSharedPreferences("records", MODE_PRIVATE);
-                  home();
-              }
-
-              GradientDrawable shape(int color, int radius) {
-                  GradientDrawable d = new GradientDrawable();
-                  d.setColor(color);
-                  d.setCornerRadius(radius);
-                  return d;
-              }
-
-              TextView text(String s, int size, int color) {
-                  TextView t = new TextView(this);
-                  t.setText(s);
-                  t.setTextSize(size);
-                  t.setTextColor(color);
-                  t.setPadding(12,10,12,10);
-                  return t;
-              }
-
-              void setup(String title) {
-                  root = new LinearLayout(this);
-                  root.setOrientation(1);
-                  root.setBackgroundColor(pale);
-                  setContentView(root);
-
-                  TextView bar = text("RECORD MANAGER     |     " + title,19,Color.WHITE);
-                  bar.setTypeface(null,Typeface.BOLD);
-                  bar.setGravity(Gravity.CENTER_VERTICAL);
-                  bar.setBackgroundColor(blue);
-                  root.addView(bar,new LinearLayout.LayoutParams(-1,58));
-
-                  ScrollView scroll = new ScrollView(this);
-                  body = new LinearLayout(this);
-                  body.setOrientation(1);
-                  body.setPadding(16,16,16,24);
-                  scroll.addView(body);
-                  root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-              }
-
-              void heading(String s) {
-                  TextView t = text(s,27,blue);
-                  t.setTypeface(null,Typeface.BOLD);
-                  body.addView(t);
-              }
-
-              void button(String s, Runnable action) {
-                  TextView b = text(s,18,Color.WHITE);
-                  b.setGravity(Gravity.CENTER);
-                  b.setTypeface(null,Typeface.BOLD);
-                  b.setBackground(shape(blue,16));
-                  b.setElevation(3);
-                  b.setClickable(true);
-                  b.setFocusable(true);
-
-                  LinearLayout.LayoutParams p =
-                      new LinearLayout.LayoutParams(-1,60);
-                  p.setMargins(0,7,0,7);
-                  body.addView(b,p);
-                  b.setOnClickListener(v -> action.run());
-              }
-
-              EditText field(String hint) {
-                  EditText e = new EditText(this);
-                  e.setHint(hint);
-                  e.setTextSize(16);
-                  e.setPadding(14,10,14,10);
-                  e.setTextColor(dark);
-                  e.setBackground(shape(Color.WHITE,12));
-                  LinearLayout.LayoutParams p =
-                      new LinearLayout.LayoutParams(-1,-2);
-                  p.setMargins(0,6,0,6);
-                  body.addView(e,p);
-                  return e;
-              }
-
-              void home() {
-                  setup("HOME");
-                  heading("Welcome!");
-                  body.addView(text(
-                      "Your personal records, organized and secure.",
-                      17,dark));
-
-                  button("MY PROFILE", () -> profile());
-                  button("ADD A PERSON  +", () -> newRecord());
-                  button("OLD RECORDS", () -> oldRecords());
-                  button("CNIC SEARCH", () -> oldRecords());
-                  button("MOBILE SEARCH", () -> oldRecords());
-                  button("NEARBY SOCIAL", () ->
-                      message("Nearby Social",
-                      "This feature will be added in a future update."));
-                  button("SUPPORT", () ->
-                      message("Support",
-                      "Support service will be added in a future update."));
-                  button("SETTINGS", () ->
-                      message("Settings",
-                      "More settings will be added in a future update."));
-
-                  body.addView(text(
-                      "Version 1.2  •  Saved on this phone",
-                      14,Color.GRAY));
-              }
-
-              void newRecord() {
-                  setup("NEW RECORD");
-                  heading("Add a Person");
-
-                  EditText name = field("Full Name *");
-                  EditText cnic = field("CNIC Number");
-                  EditText mobile = field("Mobile Number");
-                  EditText dob = field("Date of Birth");
-                  EditText address = field("Address");
-                  EditText marital = field("Marital Status");
-                  EditText notes = field("Notes");
-
-                  button("SAVE RECORD", () -> {
-                      String n = name.getText().toString().trim();
-                      if(n.isEmpty()) {
-                          name.setError("Name is required");
-                          return;
-                      }
-
-                      try {
-                          JSONArray a = new JSONArray(
-                              prefs.getString("data","[]"));
-                          JSONObject o = new JSONObject();
-
-                          o.put("name",n);
-                          o.put("cnic",cnic.getText().toString());
-                          o.put("mobile",mobile.getText().toString());
-                          o.put("dob",dob.getText().toString());
-                          o.put("address",address.getText().toString());
-                          o.put("marital",marital.getText().toString());
-                          o.put("notes",notes.getText().toString());
-
-                          a.put(o);
-                          prefs.edit().putString("data",a.toString()).apply();
-
-                          new AlertDialog.Builder(this)
-                              .setTitle("Saved")
-                              .setMessage("Record saved on this phone.")
-                              .setPositiveButton("OK",(d,w)->oldRecords())
-                              .show();
-
-                      } catch(Exception ex) {
-                          message("Error","Record could not be saved.");
-                      }
-                  });
-
-                  button("BACK TO HOME", () -> home());
-              }
-
-              void oldRecords() {
-                  setup("OLD RECORDS");
-                  heading("Saved Records");
-
-                  EditText search = field("Search name, CNIC or mobile");
-                  LinearLayout results = new LinearLayout(this);
-                  results.setOrientation(1);
-                  body.addView(results);
-
-                  Runnable show = () -> {
-                      results.removeAllViews();
-                      try {
-                          JSONArray a = new JSONArray(
-                              prefs.getString("data","[]"));
-                          String q = search.getText().toString().toLowerCase();
-
-                          for(int i=a.length()-1;i>=0;i--) {
-                              JSONObject o = a.getJSONObject(i);
-                              String all = o.optString("name")+" "+
-                                  o.optString("cnic")+" "+
-                                  o.optString("mobile");
-
-                              if(!all.toLowerCase().contains(q)) continue;
-
-                              TextView card = text(
-                                  o.optString("name")+
-                                  "\nCNIC: "+o.optString("cnic")+
-                                  "\nMobile: "+o.optString("mobile")+
-                                  "\nDOB: "+o.optString("dob")+
-                                  "\nAddress: "+o.optString("address")+
-                                  "\nMarital Status: "+o.optString("marital")+
-                                  "\nNotes: "+o.optString("notes"),
-                                  16,blue);
-
-                              card.setBackground(shape(Color.WHITE,14));
-                              LinearLayout.LayoutParams cp =
-                                  new LinearLayout.LayoutParams(-1,-2);
-                              cp.setMargins(0,6,0,6);
-                              results.addView(card,cp);
-
-                              final int index = i;
-                              TextView del = text("DELETE RECORD",15,
-                                  Color.RED);
-                              del.setGravity(Gravity.CENTER);
-                              del.setOnClickListener(v ->
-                                  new AlertDialog.Builder(this)
-                                  .setMessage("Delete this record?")
-                                  .setNegativeButton("Cancel",null)
-                                  .setPositiveButton("Delete",(d,w)->{
-                                      try {
-                                          JSONArray old = new JSONArray(
-                                              prefs.getString("data","[]"));
-                                          JSONArray fresh = new JSONArray();
-                                          for(int j=0;j<old.length();j++) {
-                                              if(j!=index) fresh.put(old.get(j));
-                                          }
-                                          prefs.edit().putString(
-                                              "data",fresh.toString()).apply();
-                                          oldRecords();
-                                      } catch(Exception ex) {}
-                                  }).show());
-                              results.addView(del);
-                          }
-
-                          if(results.getChildCount()==0) {
-                              results.addView(text(
-                                  "No matching records found.",
-                                  16,Color.GRAY));
-                          }
-
-                      } catch(Exception ex) {}
-                  };
-
-                  search.addTextChangedListener(new TextWatcher() {
-                      public void beforeTextChanged(CharSequence s,int st,
-                          int c,int a) {}
-                      public void onTextChanged(CharSequence s,int st,
-                          int before,int count) { show.run(); }
-                      public void afterTextChanged(Editable e) {}
-                  });
-
-                  show.run();
-                  button("ADD NEW PERSON  +", () -> newRecord());
-                  button("BACK TO HOME", () -> home());
-              }
-
-              void profile() {
-                  setup("MY PROFILE");
-                  heading("My Profile");
-
-                  EditText name = field("Your Name");
-                  EditText mobile = field("Your Mobile Number");
-
-                  name.setText(prefs.getString("profile_name",""));
-                  mobile.setText(prefs.getString("profile_mobile",""));
-
-                  button("SAVE PROFILE", () -> {
-                      prefs.edit()
-                          .putString("profile_name",
-                              name.getText().toString())
-                          .putString("profile_mobile",
-                              mobile.getText().toString())
-                          .apply();
-                      message("Saved",
-                          "Your profile has been saved on this phone.");
-                  });
-
-                  button("BACK TO HOME", () -> home());
-              }
-
-              void message(String title,String msg) {
-                  new AlertDialog.Builder(this)
-                      .setTitle(title)
-                      .setMessage(msg)
-                      .setPositiveButton("OK",null)
-                      .show();
+          import android.os.Build;
+          public class ReminderReceiver extends BroadcastReceiver {
+              @Override public void onReceive(Context c, Intent i) {
+                  String title=i.getStringExtra("title"); if(title==null) title="Record Manager reminder";
+                  NotificationManager nm=(NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE);
+                  if(Build.VERSION.SDK_INT>=26) nm.createNotificationChannel(new NotificationChannel("rm_reminders","Reminders",NotificationManager.IMPORTANCE_HIGH));
+                  Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(c,"rm_reminders"):new Notification.Builder(c);
+                  b.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Record Manager").setContentText(title).setAutoCancel(true);
+                  nm.notify((int)System.currentTimeMillis(),b.build());
               }
           }
           EOF
+          cat > app/src/main/java/com/recordmanager/app/MainActivity.java <<'EOF'
+          package com.recordmanager.app;
 
-      - name: Build APK
-        run: gradle assembleDebug
+          import android.Manifest;
+          import android.app.*;
+          import android.os.*;
+          import android.content.*;
+          import android.graphics.*;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.provider.Settings;
+          import android.text.*;
+          import android.view.*;
+          import android.view.inputmethod.InputMethodManager;
+          import android.widget.*;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.biometric.BiometricManager;
+          import androidx.biometric.BiometricPrompt;
+          import androidx.core.content.ContextCompat;
+          import org.json.*;
+          import java.text.SimpleDateFormat;
+          import java.util.*;
+          import java.util.concurrent.Executor;
+
+          public class MainActivity extends AppCompatActivity {
+              final String PREF="rm_store", KEY="records", EXP="expenses";
+              ArrayList<JSONObject> records=new ArrayList<>(), expenses=new ArrayList<>();
+              LinearLayout root, body, nav;
+              EditText search;
+              int navy=Color.rgb(11,40,80), blue=Color.rgb(18,60,114), cyan=Color.rgb(25,167,206), ink=Color.rgb(29,43,61), pale=Color.rgb(243,247,252);
+              @Override public void onCreate(Bundle b){super.onCreate(b); getWindow().setStatusBarColor(navy); getWindow().setNavigationBarColor(navy); load(); home(); if(Build.VERSION.SDK_INT>=33) ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.POST_NOTIFICATIONS},77);}
+              void load(){try{JSONArray a=new JSONArray(getSharedPreferences(PREF,0).getString(KEY,"[]")); for(int i=0;i<a.length();i++)records.add(a.getJSONObject(i)); JSONArray e=new JSONArray(getSharedPreferences(PREF,0).getString(EXP,"[]"));for(int i=0;i<e.length();i++)expenses.add(e.getJSONObject(i));}catch(Exception ignored){}}
+              void persist(){try{JSONArray a=new JSONArray();for(JSONObject o:records)a.put(o);getSharedPreferences(PREF,0).edit().putString(KEY,a.toString()).apply();JSONArray e=new JSONArray();for(JSONObject o:expenses)e.put(o);getSharedPreferences(PREF,0).edit().putString(EXP,e.toString()).apply();}catch(Exception ignored){}}
+              GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(radius);return d;}
+              TextView text(String s,int size,int color,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(null,1);return t;}
+              LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
+              LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
+              void base(String title,String subtitle){root=column();root.setBackgroundColor(pale);setContentView(root);LinearLayout header=column();header.setPadding(20,18,20,18);header.setBackground(bg(navy,0));TextView t=text(title,24,Color.WHITE,true);header.addView(t);TextView st=text(subtitle,13,0xFFD7E7F7,false);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,-2);sp.topMargin=4;header.addView(st,sp);root.addView(header);ScrollView sc=new ScrollView(this);body=column();body.setPadding(16,16,16,20);sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));nav=row();nav.setPadding(6,7,6,7);nav.setBackgroundColor(Color.WHITE);root.addView(nav);navButton("Home",()->home());navButton("New",()->form(null));navButton("Records",()->recordsPage());navButton("Tools",()->tools());}
+              void navButton(String s,Runnable r){TextView b=text(s,12,blue,true);b.setGravity(Gravity.CENTER);b.setPadding(8,12,8,12);nav.addView(b,new LinearLayout.LayoutParams(0,-2,1));b.setOnClickListener(v->r.run());}
+              void card(String title,String desc,Runnable click){LinearLayout c=column();c.setPadding(16,14,16,14);c.setBackground(bg(Color.WHITE,18));c.setElevation(2);TextView a=text(title,17,ink,true);c.addView(a);TextView d=text(desc,13,0xFF66758A,false);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=5;c.addView(d,p);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=12;body.addView(c,cp);if(click!=null)c.setOnClickListener(v->click.run());}
+              void home(){base("Record Manager","Your personal information & life manager");int total=records.size();card("Welcome back","Keep important people, notes and reminders in one secure place.",null);card("MY RECORDS     "+total,"Saved profiles on this phone",()->recordsPage());card("＋  Add New Person","Save contact details, notes and social links",()->form(null));card("⌕  Search Records","Find by name, mobile, CNIC or notes",()->recordsPage());card("⏰  Reminders","Create a reminder for a person or task",()->reminder());card("₹  Expense & Udhaar","Track money you gave or need to receive",()->expenseForm());card("◈  Privacy & Security","Optional biometric unlock",()->biometric());card("Important privacy note","Social links are user-provided/public links. The app cannot reveal private social accounts from a phone number or track a phone by number alone.",null);}
+              EditText field(String hint){EditText e=new EditText(this);e.setSingleLine(false);e.setTextSize(15);e.setHint(hint);e.setPadding(13,10,13,10);e.setBackground(bg(Color.WHITE,12));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=10;body.addView(e,p);return e;}
+              void button(String label,Runnable action){TextView b=text(label,15,Color.WHITE,true);b.setGravity(Gravity.CENTER);b.setPadding(16,14,16,14);b.setBackground(bg(blue,14));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=10;body.addView(b,p);b.setOnClickListener(v->action.run());}
+              void form(JSONObject old){base(old==null?"New Person":"Edit Person","Details are stored locally on this phone");EditText name=field("Full name *"),mobile=field("Mobile number"),cnic=field("CNIC"),dob=field("Date of birth"),address=field("Address"),status=field("Marital status"),notes=field("Notes / meeting history"),fb=field("Facebook public profile URL"),ig=field("Instagram profile URL"),tt=field("TikTok profile URL"),wa=field("WhatsApp number or link"),li=field("LinkedIn profile URL");if(old!=null){name.setText(old.optString("name"));mobile.setText(old.optString("mobile"));cnic.setText(old.optString("cnic"));dob.setText(old.optString("dob"));address.setText(old.optString("address"));status.setText(old.optString("status"));notes.setText(old.optString("notes"));fb.setText(old.optString("fb"));ig.setText(old.optString("ig"));tt.setText(old.optString("tt"));wa.setText(old.optString("wa"));li.setText(old.optString("li"));}
+                button("SAVE PERSON",()->{if(name.getText().toString().trim().isEmpty()){name.setError("Name required");return;}try{JSONObject o=old==null?new JSONObject():old;o.put("name",val(name));o.put("mobile",val(mobile));o.put("cnic",val(cnic));o.put("dob",val(dob));o.put("address",val(address));o.put("status",val(status));o.put("notes",val(notes));o.put("fb",val(fb));o.put("ig",val(ig));o.put("tt",val(tt));o.put("wa",val(wa));o.put("li",val(li));o.put("updated",new SimpleDateFormat("yyyy-MM-dd HH:mm",Locale.getDefault()).format(new Date()));if(old==null)records.add(0,o);persist();Toast.makeText(this,"Record saved on this phone",Toast.LENGTH_LONG).show();recordsPage();}catch(Exception ex){Toast.makeText(this,"Could not save record",0).show();}});}
+              String val(EditText e){return e.getText().toString().trim();}
+              void recordsPage(){base("Old Records","Search, open, edit or delete saved profiles");EditText q=field("Search name, mobile, CNIC or notes");LinearLayout list=column();body.addView(list);Runnable render=()->{list.removeAllViews();String term=q.getText().toString().toLowerCase(Locale.ROOT);for(int i=0;i<records.size();i++){final int ix=i;JSONObject o=records.get(i);String all=o.toString().toLowerCase(Locale.ROOT);if(!all.contains(term))continue;LinearLayout c=column();c.setPadding(14,12,14,12);c.setBackground(bg(Color.WHITE,14));TextView n=text(o.optString("name","Unnamed"),17,ink,true);c.addView(n);c.addView(text(o.optString("mobile")+"   •   "+o.optString("cnic"),13,0xFF64748B,false));TextView detail=text("View / Edit     •     Delete",13,blue,true);c.addView(detail);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=9;list.addView(c,p);c.setOnClickListener(v->detailDialog(ix));}};q.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){render.run();}public void afterTextChanged(Editable e){}});render.run();if(records.isEmpty())card("No records yet","Tap New to add your first person.",()->form(null));}
+              void detailDialog(int i){JSONObject o=records.get(i);String msg="Mobile: "+o.optString("mobile")+"\nCNIC: "+o.optString("cnic")+"\nDOB: "+o.optString("dob")+"\nAddress: "+o.optString("address")+"\nNotes: "+o.optString("notes");new AlertDialog.Builder(this).setTitle(o.optString("name")).setMessage(msg).setPositiveButton("Edit",(d,w)->form(o)).setNeutralButton("Call",(d,w)->{String n=o.optString("mobile");if(!n.isEmpty())startActivity(new Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+Uri.encode(n))));}).setNegativeButton("Delete",(d,w)->new AlertDialog.Builder(this).setMessage("Delete this record?").setNegativeButton("Cancel",null).setPositiveButton("Delete",(dd,ww)->{records.remove(i);persist();recordsPage();}).show()).show();}
+              void reminder(){base("New Reminder","Schedule a notification on this device");EditText title=field("Reminder title");EditText mins=field("Remind me after minutes (e.g. 60)");button("SCHEDULE REMINDER",()->{try{int m=Integer.parseInt(mins.getText().toString().trim());if(m<1)throw new Exception();Intent in=new Intent(this,ReminderReceiver.class);in.putExtra("title",title.getText().toString().trim().isEmpty()?"Your reminder":title.getText().toString());PendingIntent pi=PendingIntent.getBroadcast(this,(int)System.currentTimeMillis(),in,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);((AlarmManager)getSystemService(ALARM_SERVICE)).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,System.currentTimeMillis()+m*60000L,pi);Toast.makeText(this,"Reminder scheduled",1).show();home();}catch(Exception e){mins.setError("Enter minutes, e.g. 60");}});card("Note","Android battery restrictions may delay reminders. Notification permission must be allowed.",null);}
+              void expenseForm(){base("Expense & Udhaar","Simple local money tracker");EditText person=field("Person / purpose"),amount=field("Amount"),type=field("Type: I GAVE or I WILL RECEIVE"),note=field("Details");button("SAVE TRANSACTION",()->{try{JSONObject o=new JSONObject();o.put("person",val(person));o.put("amount",val(amount));o.put("type",val(type));o.put("note",val(note));o.put("date",new SimpleDateFormat("yyyy-MM-dd",Locale.getDefault()).format(new Date()));expenses.add(0,o);persist();Toast.makeText(this,"Transaction saved",1).show();tools();}catch(Exception e){}});for(JSONObject o:expenses)card(o.optString("person")+" — "+o.optString("amount"),o.optString("type")+" • "+o.optString("date"),null);}
+              void tools(){base("Tools & More","Useful shortcuts");card("QR Contact Card","Create a shareable QR for your own contact details (coming in a later update).",null);card("Document Vault","Attach and manage private files (coming in a later update).",null);card("Activity Timeline","Record updates are timestamped; detailed timeline is planned.",null);card("Backup & Restore","Export and cloud backup are not configured in this build.",null);card("Lost Phone Finder","This app cannot locate a phone by number. For your own Android phone, use Google's Find Hub / Find My Device with the same Google account.",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://android.com/find"))));card("Public Social Links","Add profile URLs in a person's record. Private account discovery by phone number is not supported.",null);card("App Version","Record Manager 2.0 • Local storage build",null);}
+              void biometric(){BiometricManager bm=BiometricManager.from(this);if(bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG|BiometricManager.Authenticators.DEVICE_CREDENTIAL)!=BiometricManager.BIOMETRIC_SUCCESS){new AlertDialog.Builder(this).setMessage("Fingerprint or device screen lock is not available on this phone.").setPositiveButton("OK",null).show();return;}Executor ex=ContextCompat.getMainExecutor(this);BiometricPrompt p=new BiometricPrompt(this,ex,new BiometricPrompt.AuthenticationCallback(){@Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult r){Toast.makeText(MainActivity.this,"Identity verified for this session",1).show();}});BiometricPrompt.PromptInfo info=new BiometricPrompt.PromptInfo.Builder().setTitle("Record Manager").setSubtitle("Verify your identity").setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG|BiometricManager.Authenticators.DEVICE_CREDENTIAL).build();p.authenticate(info);}
+          }
+          EOF
+
+      - name: Build debug APK
+        run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Record-Manager-APK
+          name: Record-Manager-Ultimate-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          
+          if-no-files-found: error
