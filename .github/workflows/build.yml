@@ -29,7 +29,6 @@ jobs:
       - name: Create Android Project
         run: |
           mkdir -p app/src/main/java/com/recordmanager/app
-          mkdir -p app/src/main/res/values
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -60,15 +59,17 @@ jobs:
           plugins {
               id 'com.android.application'
           }
+
           android {
               namespace 'com.recordmanager.app'
               compileSdk 35
+
               defaultConfig {
                   applicationId 'com.recordmanager.app'
                   minSdk 23
                   targetSdk 35
-                  versionCode 2
-                  versionName '1.1'
+                  versionCode 3
+                  versionName '1.2'
               }
           }
           EOF
@@ -77,8 +78,7 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application
                   android:theme="@android:style/Theme.Material.Light.NoActionBar"
-                  android:label="Record Manager"
-                  android:usesCleartextTraffic="false">
+                  android:label="Record Manager">
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -99,21 +99,24 @@ jobs:
           import android.graphics.Color;
           import android.graphics.Typeface;
           import android.graphics.drawable.GradientDrawable;
-          import android.content.*;
           import android.view.*;
           import android.widget.*;
           import android.text.*;
+          import android.content.*;
           import org.json.*;
 
           public class MainActivity extends Activity {
+
               LinearLayout root, body;
-              EditText search;
+              SharedPreferences prefs;
               int blue = Color.rgb(24,65,110);
               int pale = Color.rgb(242,247,253);
-              android.content.SharedPreferences prefs;
+              int dark = Color.rgb(35,48,65);
 
               public void onCreate(Bundle b) {
                   super.onCreate(b);
+                  getWindow().setStatusBarColor(blue);
+                  getWindow().setNavigationBarColor(Color.BLACK);
                   prefs = getSharedPreferences("records", MODE_PRIVATE);
                   home();
               }
@@ -140,50 +143,51 @@ jobs:
                   root.setBackgroundColor(pale);
                   setContentView(root);
 
-                  TextView bar = text("  RECORD MANAGER     |     " + title, 20, Color.WHITE);
-                  bar.setTypeface(null, Typeface.BOLD);
+                  TextView bar = text("RECORD MANAGER     |     " + title,19,Color.WHITE);
+                  bar.setTypeface(null,Typeface.BOLD);
+                  bar.setGravity(Gravity.CENTER_VERTICAL);
                   bar.setBackgroundColor(blue);
-                  root.addView(bar, new LinearLayout.LayoutParams(-1,62));
+                  root.addView(bar,new LinearLayout.LayoutParams(-1,58));
 
                   ScrollView scroll = new ScrollView(this);
                   body = new LinearLayout(this);
                   body.setOrientation(1);
-                  body.setPadding(16,14,16,20);
+                  body.setPadding(16,16,16,24);
                   scroll.addView(body);
-                  root.addView(scroll);
+                  root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
               }
 
               void heading(String s) {
-                  TextView t = text(s,25,blue);
+                  TextView t = text(s,27,blue);
                   t.setTypeface(null,Typeface.BOLD);
                   body.addView(t);
               }
-void button(String s, Runnable action) {
-    Button b = new Button(this);
-    b.setText(s);
-    b.setTextColor(Color.WHITE);
-    b.setTextSize(17);
-    b.setAllCaps(false);
-    b.setGravity(Gravity.CENTER);
-    b.setPadding(12, 8, 12, 8);
-    b.setMinHeight(58);
-    b.setBackground(shape(blue, 18));
-    b.setBackgroundTintList(null);
-    b.setOnClickListener(v -> action.run());
 
-    LinearLayout.LayoutParams p =
-        new LinearLayout.LayoutParams(-1, 60);
-    p.setMargins(0, 8, 0, 8);
-    body.addView(b, p);
-}
-        EditText field(String hint) {
+              void button(String s, Runnable action) {
+                  TextView b = text(s,18,Color.WHITE);
+                  b.setGravity(Gravity.CENTER);
+                  b.setTypeface(null,Typeface.BOLD);
+                  b.setBackground(shape(blue,16));
+                  b.setElevation(3);
+                  b.setClickable(true);
+                  b.setFocusable(true);
+
+                  LinearLayout.LayoutParams p =
+                      new LinearLayout.LayoutParams(-1,60);
+                  p.setMargins(0,7,0,7);
+                  body.addView(b,p);
+                  b.setOnClickListener(v -> action.run());
+              }
+
+              EditText field(String hint) {
                   EditText e = new EditText(this);
                   e.setHint(hint);
                   e.setTextSize(16);
-                  e.setSingleLine(false);
                   e.setPadding(14,10,14,10);
+                  e.setTextColor(dark);
                   e.setBackground(shape(Color.WHITE,12));
-                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2);
+                  LinearLayout.LayoutParams p =
+                      new LinearLayout.LayoutParams(-1,-2);
                   p.setMargins(0,6,0,6);
                   body.addView(e,p);
                   return e;
@@ -192,21 +196,34 @@ void button(String s, Runnable action) {
               void home() {
                   setup("HOME");
                   heading("Welcome!");
-                  body.addView(text("Your personal records, organized and secure.",17,Color.DKGRAY));
-                  button("👤  My Profile", () -> profile());
-                  button("＋  New Record", () -> newRecord());
-                  button("▤  Old Records", () -> oldRecords(""));
-                  button("⌕  CNIC Search", () -> oldRecords("cnic"));
-                  button("☎  Mobile Search", () -> oldRecords("mobile"));
-                  button("◎  Nearby Social", () -> message("Nearby Social", "This feature is not available yet."));
-                  button("Support", () -> message("Support", "Support service will be added in a future update."));
-                  button("⚙  Settings", () -> message("Settings", "More settings will be added later."));
-                  body.addView(text("Version 1.1  •  Records are stored on this phone",13,Color.GRAY));
+                  body.addView(text(
+                      "Your personal records, organized and secure.",
+                      17,dark));
+
+                  button("MY PROFILE", () -> profile());
+                  button("ADD A PERSON  +", () -> newRecord());
+                  button("OLD RECORDS", () -> oldRecords());
+                  button("CNIC SEARCH", () -> oldRecords());
+                  button("MOBILE SEARCH", () -> oldRecords());
+                  button("NEARBY SOCIAL", () ->
+                      message("Nearby Social",
+                      "This feature will be added in a future update."));
+                  button("SUPPORT", () ->
+                      message("Support",
+                      "Support service will be added in a future update."));
+                  button("SETTINGS", () ->
+                      message("Settings",
+                      "More settings will be added in a future update."));
+
+                  body.addView(text(
+                      "Version 1.2  •  Saved on this phone",
+                      14,Color.GRAY));
               }
 
               void newRecord() {
                   setup("NEW RECORD");
                   heading("Add a Person");
+
                   EditText name = field("Full Name *");
                   EditText cnic = field("CNIC Number");
                   EditText mobile = field("Mobile Number");
@@ -214,15 +231,19 @@ void button(String s, Runnable action) {
                   EditText address = field("Address");
                   EditText marital = field("Marital Status");
                   EditText notes = field("Notes");
+
                   button("SAVE RECORD", () -> {
                       String n = name.getText().toString().trim();
                       if(n.isEmpty()) {
                           name.setError("Name is required");
                           return;
                       }
+
                       try {
-                          JSONArray a = new JSONArray(prefs.getString("data","[]"));
+                          JSONArray a = new JSONArray(
+                              prefs.getString("data","[]"));
                           JSONObject o = new JSONObject();
+
                           o.put("name",n);
                           o.put("cnic",cnic.getText().toString());
                           o.put("mobile",mobile.getText().toString());
@@ -230,23 +251,29 @@ void button(String s, Runnable action) {
                           o.put("address",address.getText().toString());
                           o.put("marital",marital.getText().toString());
                           o.put("notes",notes.getText().toString());
+
                           a.put(o);
                           prefs.edit().putString("data",a.toString()).apply();
+
                           new AlertDialog.Builder(this)
+                              .setTitle("Saved")
                               .setMessage("Record saved on this phone.")
-                              .setPositiveButton("OK",(d,w)->oldRecords(""))
+                              .setPositiveButton("OK",(d,w)->oldRecords())
                               .show();
+
                       } catch(Exception ex) {
-                          message("Error","Could not save this record.");
+                          message("Error","Record could not be saved.");
                       }
                   });
+
                   button("BACK TO HOME", () -> home());
               }
 
-              void oldRecords(String filter) {
+              void oldRecords() {
                   setup("OLD RECORDS");
                   heading("Saved Records");
-                  search = field("Search name, CNIC or mobile");
+
+                  EditText search = field("Search name, CNIC or mobile");
                   LinearLayout results = new LinearLayout(this);
                   results.setOrientation(1);
                   body.addView(results);
@@ -254,12 +281,18 @@ void button(String s, Runnable action) {
                   Runnable show = () -> {
                       results.removeAllViews();
                       try {
-                          JSONArray a = new JSONArray(prefs.getString("data","[]"));
+                          JSONArray a = new JSONArray(
+                              prefs.getString("data","[]"));
                           String q = search.getText().toString().toLowerCase();
+
                           for(int i=a.length()-1;i>=0;i--) {
                               JSONObject o = a.getJSONObject(i);
-                              String all = o.optString("name")+" "+o.optString("cnic")+" "+o.optString("mobile");
+                              String all = o.optString("name")+" "+
+                                  o.optString("cnic")+" "+
+                                  o.optString("mobile");
+
                               if(!all.toLowerCase().contains(q)) continue;
+
                               TextView card = text(
                                   o.optString("name")+
                                   "\nCNIC: "+o.optString("cnic")+
@@ -267,63 +300,91 @@ void button(String s, Runnable action) {
                                   "\nDOB: "+o.optString("dob")+
                                   "\nAddress: "+o.optString("address")+
                                   "\nMarital Status: "+o.optString("marital")+
-                                  "\nNotes: "+o.optString("notes"),16,blue);
+                                  "\nNotes: "+o.optString("notes"),
+                                  16,blue);
+
                               card.setBackground(shape(Color.WHITE,14));
-                              LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2);
-                              p.setMargins(0,6,0,10);
-                              results.addView(card,p);
-                              final int index=i;
-                              Button del = new Button(this);
-                              del.setText("Delete this record");
-                              del.setOnClickListener(v -> new AlertDialog.Builder(this)
+                              LinearLayout.LayoutParams cp =
+                                  new LinearLayout.LayoutParams(-1,-2);
+                              cp.setMargins(0,6,0,6);
+                              results.addView(card,cp);
+
+                              final int index = i;
+                              TextView del = text("DELETE RECORD",15,
+                                  Color.RED);
+                              del.setGravity(Gravity.CENTER);
+                              del.setOnClickListener(v ->
+                                  new AlertDialog.Builder(this)
                                   .setMessage("Delete this record?")
                                   .setNegativeButton("Cancel",null)
                                   .setPositiveButton("Delete",(d,w)->{
                                       try {
-                                          JSONArray old = new JSONArray(prefs.getString("data","[]"));
+                                          JSONArray old = new JSONArray(
+                                              prefs.getString("data","[]"));
                                           JSONArray fresh = new JSONArray();
-                                          for(int j=0;j<old.length();j++) if(j!=index) fresh.put(old.get(j));
-                                          prefs.edit().putString("data",fresh.toString()).apply();
-                                          oldRecords("");
+                                          for(int j=0;j<old.length();j++) {
+                                              if(j!=index) fresh.put(old.get(j));
+                                          }
+                                          prefs.edit().putString(
+                                              "data",fresh.toString()).apply();
+                                          oldRecords();
                                       } catch(Exception ex) {}
                                   }).show());
                               results.addView(del);
                           }
-                          if(results.getChildCount()==0)
-                              results.addView(text("No matching records found.",16,Color.GRAY));
+
+                          if(results.getChildCount()==0) {
+                              results.addView(text(
+                                  "No matching records found.",
+                                  16,Color.GRAY));
+                          }
+
                       } catch(Exception ex) {}
                   };
+
                   search.addTextChangedListener(new TextWatcher() {
-                      public void beforeTextChanged(CharSequence s,int st,int c,int a) {}
-                      public void onTextChanged(CharSequence s,int st,int before,int count) { show.run(); }
+                      public void beforeTextChanged(CharSequence s,int st,
+                          int c,int a) {}
+                      public void onTextChanged(CharSequence s,int st,
+                          int before,int count) { show.run(); }
                       public void afterTextChanged(Editable e) {}
                   });
+
                   show.run();
-                  button("＋  ADD NEW RECORD", () -> newRecord());
+                  button("ADD NEW PERSON  +", () -> newRecord());
                   button("BACK TO HOME", () -> home());
               }
 
               void profile() {
                   setup("MY PROFILE");
                   heading("My Profile");
+
                   EditText name = field("Your Name");
                   EditText mobile = field("Your Mobile Number");
+
                   name.setText(prefs.getString("profile_name",""));
                   mobile.setText(prefs.getString("profile_mobile",""));
+
                   button("SAVE PROFILE", () -> {
                       prefs.edit()
-                          .putString("profile_name",name.getText().toString())
-                          .putString("profile_mobile",mobile.getText().toString())
+                          .putString("profile_name",
+                              name.getText().toString())
+                          .putString("profile_mobile",
+                              mobile.getText().toString())
                           .apply();
-                      message("Saved","Your profile has been saved on this phone.");
+                      message("Saved",
+                          "Your profile has been saved on this phone.");
                   });
+
                   button("BACK TO HOME", () -> home());
               }
 
               void message(String title,String msg) {
                   new AlertDialog.Builder(this)
-                      .setTitle(title).setMessage(msg)
-                      .setPositiveButton("OK",null).show();
+                      .setTitle(title)
+                      .setMessage(msg)
+                      .setPositiveButton("OK",null)
+                      .show();
               }
           }
           EOF
@@ -336,3 +397,4 @@ void button(String s, Runnable action) {
         with:
           name: Record-Manager-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+          
