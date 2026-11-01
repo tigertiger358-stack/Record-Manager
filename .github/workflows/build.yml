@@ -1,200 +1,54 @@
-name: Build Public Services APK
+
+name: Build Record Manager APK
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - uses: gradle/actions/setup-gradle@v4
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
         with:
-          gradle-version: '8.9'
-      - name: Generate Android app
-        shell: bash
-        run: |
-          mkdir -p app/src/main/java/com/publicservices/app app/src/main/res/values
-          cat > settings.gradle <<'EOF'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories { google(); mavenCentral() }
-          }
-          rootProject.name = 'PublicServices'
-          include ':app'
-          EOF
-          cat > build.gradle <<'EOF'
-          plugins { id 'com.android.application' version '8.7.3' apply false }
-          EOF
-          cat > gradle.properties <<'EOF'
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          EOF
-          cat > app/build.gradle <<'EOF'
-          plugins { id 'com.android.application' }
-          android {
-            namespace 'com.publicservices.app'
-            compileSdk 35
-            defaultConfig {
-              applicationId 'com.publicservices.app'
-              minSdk 23
-              targetSdk 35
-              versionCode 1
-              versionName '1.0'
-            }
-          }
-          EOF
-          cat > app/src/main/res/values/styles.xml <<'EOF'
-          <resources>
-            <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-              <item name="android:fontFamily">sans</item>
-              <item name="android:colorAccent">#176B57</item>
-              <item name="android:statusBarColor">#176B57</item>
-              <item name="android:navigationBarColor">#FFFFFF</item>
-            </style>
-          </resources>
-          EOF
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET"/>
-            <application android:theme="@style/AppTheme" android:label="Public Services" android:allowBackup="true">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN"/>
-                  <category android:name="android.intent.category.LAUNCHER"/>
-                </intent-filter>
-              </activity>
-            </application>
-          </manifest>
-          EOF
-          cat > app/src/main/java/com/publicservices/app/MainActivity.java <<'EOF'
-          package com.publicservices.app;
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
 
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.content.*;
-          import android.net.Uri;
-          import android.graphics.Color;
-          import android.graphics.Typeface;
-          import android.view.View;
-          import android.widget.*;
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-          public class MainActivity extends Activity {
-            LinearLayout page, notes;
-            EditText vehicle, note;
-            android.content.SharedPreferences store;
-            int green = Color.rgb(23,107,87), dark = Color.rgb(35,48,44);
-
-            public void onCreate(Bundle b) {
-              super.onCreate(b);
-              store = getSharedPreferences("local_records", MODE_PRIVATE);
-              home();
-            }
-            TextView label(String s, int size, boolean bold) {
-              TextView t = new TextView(this); t.setText(s); t.setTextSize(size);
-              t.setTextColor(dark); t.setPadding(0,10,0,10);
-              if (bold) t.setTypeface(null, Typeface.BOLD);
-              return t;
-            }
-            void base(String title) {
-              ScrollView sc = new ScrollView(this);
-              page = new LinearLayout(this); page.setOrientation(1);
-              page.setPadding(20,18,20,24); sc.addView(page); setContentView(sc);
-              TextView h = label(title,25,true); h.setTextColor(green); page.addView(h);
-              page.addView(label("Public Services • Punjab",13,false));
-            }
-            Button btn(String s, Runnable r) {
-              Button b = new Button(this); b.setText(s); b.setAllCaps(false);
-              b.setTextColor(Color.WHITE);
-              b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(green));
-              b.setOnClickListener(v -> r.run());
-              page.addView(b); return b;
-            }
-            EditText input(String hint) {
-              EditText e = new EditText(this); e.setSingleLine(true); e.setHint(hint);
-              e.setTextSize(16); return e;
-            }
-            void open(String url) {
-              try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-              catch(Exception e) { Toast.makeText(this,"Browser open nahi hua",Toast.LENGTH_LONG).show(); }
-            }
-            void home() {
-              base("Public Services");
-              page.addView(label("Government information aur apne saved notes ek jagah. Official records sirf department ke portal se verify honge.",15,false));
-              btn("Vehicle Verification / E-Challan", this::vehiclePage);
-              btn("SIM Information (PTA)", () -> open("https://cnic.sims.pk/"));
-              btn("Punjab Land Records", () -> open("https://punjab-zameen.gov.pk/"));
-              btn("My Notes / Saved Records", this::notesPage);
-              btn("CNIC & OTP Information", this::identityPage);
-              page.addView(label("Note: Is first version mein government OTP/API login connected nahi. App CNIC daal kar private records khud nahi nikalti.",13,false));
-            }
-            void vehiclePage() {
-              base("Vehicle Services");
-              page.addView(label("Vehicle registration number likhein:",16,true));
-              vehicle = input("Misal: LEA-1234"); page.addView(vehicle);
-              btn("Verify Vehicle on MTMIS", () -> copyOpen("https://mtmis.excise.punjab.gov.pk/"));
-              btn("Check E-Challan", () -> copyOpen("https://echallan.psca.gop.pk/"));
-              page.addView(label("Registration number clipboard par copy hoga. Official portal par paste karein. Wahan available record mein owner, make/model, registration date, engine/chassis details check karein.",14,false));
-              page.addView(label("Engine/chassis number ko original papers aur gaari par maujood number se bhi match karein.",13,false));
-              btn("Back to Home", this::home);
-            }
-            void copyOpen(String url) {
-              String n = vehicle.getText().toString().trim();
-              if(n.isEmpty()) { Toast.makeText(this,"Pehle gaari ka number likhein",Toast.LENGTH_LONG).show(); return; }
-              ClipboardManager cm = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-              cm.setPrimaryClip(ClipData.newPlainText("Vehicle number",n));
-              Toast.makeText(this,"Number copy ho gaya; portal par paste karein",Toast.LENGTH_LONG).show();
-              open(url);
-            }
-            void identityPage() {
-              base("CNIC & OTP");
-              page.addView(label("Apna CNIC ya OTP sirf official/authorized service par enter karein. Chat mein CNIC ya OTP share na karein.",16,false));
-              page.addView(label("OTP login ke liye relevant department ki authorized API aur user-consent verification chahiye. Yeh connection abhi shamil nahi.",14,false));
-              btn("PTA SIM Information", () -> open("https://cnic.sims.pk/"));
-              btn("Back to Home", this::home);
-            }
-            void notesPage() {
-              base("My Notes / Saved Records");
-              page.addView(label("Notes is phone mein locally save honge.",14,false));
-              note = input("Apna note likhein"); page.addView(note);
-              btn("Save Note", () -> save());
-              notes = new LinearLayout(this); notes.setOrientation(1); page.addView(notes);
-              render();
-              btn("Back to Home", this::home);
-            }
-            void save() {
-              String s = note.getText().toString().trim();
-              if(s.isEmpty()) { Toast.makeText(this,"Pehle note likhein",Toast.LENGTH_SHORT).show(); return; }
-              String old = store.getString("notes","");
-              store.edit().putString("notes",s+"\n---\n"+old).apply();
-              note.setText(""); render();
-              Toast.makeText(this,"Note save ho gaya",Toast.LENGTH_SHORT).show();
-            }
-            void render() {
-              notes.removeAllViews();
-              String all = store.getString("notes","");
-              if(all.trim().isEmpty()) { notes.addView(label("Abhi koi note nahi.",14,false)); return; }
-              for(String s: all.split("\\n---\\n")) notes.addView(label("• "+s,15,false));
-            }
-            @Override public void onBackPressed() { home(); }
-          }
-          EOF
       - name: Build APK
-        run: gradle --no-daemon assembleDebug
+        run: |
+          if [ ! -f gradlew ]; then
+            echo "ERROR: Gradle wrapper missing"
+            exit 1
+          fi
+          chmod +x gradlew
+          ./gradlew clean assembleDebug --stacktrace
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Public-Services-debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Record-Manager-APK
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           
