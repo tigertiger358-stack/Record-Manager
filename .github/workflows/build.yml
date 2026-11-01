@@ -1,182 +1,200 @@
-name: Build Record Manager V3 APK
+name: Build Public Services APK
 
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Create Android project
+      - name: Generate Android app
         shell: bash
         run: |
-          mkdir -p app/src/main/java/com/recordmanager/app
-          mkdir -p app/src/main/res/values app/src/main/res/drawable
-          cat > settings.gradle <<'GRADLE'
+          mkdir -p app/src/main/java/com/publicservices/app app/src/main/res/values
+          cat > settings.gradle <<'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name = 'RecordManager'
-          include ':app'
-          GRADLE
-          cat > build.gradle <<'GRADLE'
-          plugins {
-              id 'com.android.application' version '8.7.3' apply false
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
           }
-          GRADLE
-          cat > gradle.properties <<'GRADLE'
-          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          rootProject.name = 'PublicServices'
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.7.3' apply false }
+          EOF
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
-          GRADLE
-          cat > app/build.gradle <<'GRADLE'
+          EOF
+          cat > app/build.gradle <<'EOF'
           plugins { id 'com.android.application' }
           android {
-              namespace 'com.recordmanager.app'
-              compileSdk 35
-              defaultConfig {
-                  applicationId 'com.recordmanager.app'
-                  minSdk 23
-                  targetSdk 35
-                  versionCode 30
-                  versionName '3.0'
-              }
+            namespace 'com.publicservices.app'
+            compileSdk 35
+            defaultConfig {
+              applicationId 'com.publicservices.app'
+              minSdk 23
+              targetSdk 35
+              versionCode 1
+              versionName '1.0'
+            }
           }
-          configurations.configureEach {
-              resolutionStrategy.eachDependency { details ->
-                  if (details.requested.group == 'org.jetbrains.kotlin' &&
-                      details.requested.name.startsWith('kotlin-stdlib')) {
-                      details.useVersion '1.8.22'
-                  }
-              }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.7.0'
-              implementation 'androidx.core:core:1.15.0'
-          }
-          GRADLE
-          cat > app/src/main/AndroidManifest.xml <<'XML'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-              <application android:theme="@style/AppTheme" android:label="Record Manager" android:icon="@drawable/app_icon" android:allowBackup="true">
-                  <activity android:name=".MainActivity" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          XML
-          cat > app/src/main/res/values/styles.xml <<'XML'
+          EOF
+          cat > app/src/main/res/values/styles.xml <<'EOF'
           <resources>
-              <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:colorAccent">#155EEF</item>
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:statusBarColor">#123EA8</item>
-                  <item name="android:navigationBarColor">#FFFFFF</item>
-                  <item name="android:windowLightNavigationBar">true</item>
-              </style>
+            <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+              <item name="android:fontFamily">sans</item>
+              <item name="android:colorAccent">#176B57</item>
+              <item name="android:statusBarColor">#176B57</item>
+              <item name="android:navigationBarColor">#FFFFFF</item>
+            </style>
           </resources>
-          XML
-          cat > app/src/main/res/drawable/app_icon.xml <<'XML'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#155EEF" android:pathData="M8,8h92v92h-92z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M22,26h64v56h-64z" />
-              <path android:fillColor="#155EEF" android:pathData="M31,37h46v5h-46zM31,49h30v5h-30zM31,61h25v5h-25z" />
-              <path android:strokeColor="#16A085" android:strokeWidth="6" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M62,68l8,8 17,-20" />
-          </vector>
-          XML
-          cat > app/src/main/java/com/recordmanager/app/MainActivity.java <<'JAVA'
-          package com.recordmanager.app;
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <application android:theme="@style/AppTheme" android:label="Public Services" android:allowBackup="true">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          cat > app/src/main/java/com/publicservices/app/MainActivity.java <<'EOF'
+          package com.publicservices.app;
 
-          import android.Manifest;
-          import android.app.*;
-          import android.os.*;
+          import android.app.Activity;
+          import android.os.Bundle;
           import android.content.*;
-          import android.content.pm.PackageManager;
-          import android.graphics.Color;
           import android.net.Uri;
-          import android.speech.RecognizerIntent;
-          import android.view.*;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.view.View;
           import android.widget.*;
-          import androidx.appcompat.app.AppCompatActivity;
-          import androidx.core.app.ActivityCompat;
-          import androidx.core.app.NotificationCompat;
-          import androidx.core.app.NotificationManagerCompat;
-          import androidx.core.content.ContextCompat;
-          import org.json.*;
-          import java.util.*;
 
-          public class MainActivity extends AppCompatActivity {
-              private final int blue=Color.rgb(21,94,239), ink=Color.rgb(25,35,55), pale=Color.rgb(242,246,255);
-              private LinearLayout root, body, top;
-              private final ArrayList<JSONObject> records=new ArrayList<>();
-              private String page="Home";
-              private android.content.SharedPreferences prefs;
-              private static final int PICK_FILE=41, SPEECH=42, NOTIFY_PERMISSION=43;
-              private static final String CHANNEL="record_manager_reminders";
+          public class MainActivity extends Activity {
+            LinearLayout page, notes;
+            EditText vehicle, note;
+            android.content.SharedPreferences store;
+            int green = Color.rgb(23,107,87), dark = Color.rgb(35,48,44);
 
-              @Override public void onCreate(Bundle state){super.onCreate(state);getWindow().setStatusBarColor(Color.rgb(18,62,168));getWindow().setNavigationBarColor(Color.WHITE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);prefs=getSharedPreferences("rm",0);load();createChannel();home();}
-              private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density);}
-              private TextView label(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setPadding(dp(8),dp(8),dp(8),dp(8));return t;}
-              private LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);l.setPadding(dp(14),dp(8),dp(14),dp(14));return l;}
-              private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
-              private Button button(String s,Runnable action){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(blue);b.setOnClickListener(v->action.run());return b;}
-              private void base(String title){page=title;root=column();root.setBackgroundColor(Color.WHITE);setContentView(root);top=row();top.addView(button("‹ Back",()->onBackPressed()));TextView h=label(title,22,ink);h.setTypeface(null,1);top.addView(h);root.addView(top);ScrollView sc=new ScrollView(this);body=column();sc.addView(body);root.addView(sc,new LinearLayout.LayoutParams(-1,0,1));}
-              private void card(String title,String subtitle,Runnable action){LinearLayout c=column();c.setBackgroundColor(pale);TextView a=label(title,17,blue);a.setTypeface(null,1);c.addView(a);c.addView(label(subtitle,13,ink));c.setOnClickListener(v->action.run());LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(5),0,dp(5));body.addView(c,p);}
-              private EditText field(String hint){EditText e=new EditText(this);e.setSingleLine(false);e.setHint(hint);body.addView(e);return e;}
-              private void home(){base("Record Manager");body.addView(label("Your personal smart assistant",16,ink));EditText q=field("Search name, number, email or note");body.addView(button("Search",()->search(q.getText().toString())));card("＋ Add Person / Record","Save a contact, details and notes",()->addRecord());card("⌕ Smart Search","Find saved people and notes by number or text",()->searchPage());card("▣ Photos & Documents","Select files from your phone",()->filesPage());card("✦ Public Help Desk","NADRA, bank, bills, jobs and complaints guidance",()->help());card("✍ Application Writer","Prepare a formal application or complaint",()->writer());card("🎙 Voice Search","Speak a search phrase",()->voice());card("⏰ Reminders","Schedule a phone notification",()->reminders());card("₨ Expenses & Udhaar","Keep a local payment record",()->expenses());card("🛡 Lost Phone","Use Google's official device finder",()->security());card("⚙ Settings & Backup","Export your locally saved records",()->settings());body.addView(label("Version 3.0 • Local records on this phone",13,Color.GRAY));}
-              private void addRecord(){base("Add New Record");EditText name=field("Full name *"),phone=field("Mobile number"),email=field("Email"),note=field("Notes / details");body.addView(button("Save Record",()->{if(name.getText().toString().trim().isEmpty()){name.setError("Name required");return;}try{JSONObject o=new JSONObject();o.put("name",name.getText().toString());o.put("phone",phone.getText().toString());o.put("email",email.getText().toString());o.put("note",note.getText().toString());records.add(o);save();profile(o);}catch(Exception ignored){}}));}
-              private void profile(JSONObject o){base("Person Profile");body.addView(label(o.optString("name"),24,blue));body.addView(label("Phone: "+o.optString("phone"),16,ink));body.addView(label("Email: "+o.optString("email"),16,ink));body.addView(label("Notes: "+o.optString("note"),15,ink));body.addView(button("Call",()->startActivity(new Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+o.optString("phone"))))));body.addView(button("WhatsApp",()->{String n=o.optString("phone").replace("+","").replace(" ","");startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://wa.me/"+n)));}));body.addView(button("Edit Notes",()->{EditText e=new EditText(this);e.setText(o.optString("note"));new AlertDialog.Builder(this).setTitle("Edit notes").setView(e).setPositiveButton("Save",(d,w)->{try{o.put("note",e.getText().toString());save();profile(o);}catch(Exception ignored){}}).setNegativeButton("Cancel",null).show();}));body.addView(button("Delete Record",()->new AlertDialog.Builder(this).setMessage("Delete this record?").setPositiveButton("Delete",(d,w)->{records.remove(o);save();home();}).setNegativeButton("Cancel",null).show()));}
-              private void searchPage(){base("Smart Search");EditText q=field("Name, phone, email or note");body.addView(button("Search",()->search(q.getText().toString())));body.addView(label("Search includes only records saved in this app.",13,ink));}
-              private void search(String q){base("Search Results");String term=q.toLowerCase(Locale.ROOT).trim();int found=0;for(JSONObject o:new ArrayList<>(records)){String all=(o.optString("name")+" "+o.optString("phone")+" "+o.optString("email")+" "+o.optString("note")).toLowerCase(Locale.ROOT);if(term.isEmpty()||all.contains(term)){found++;card(o.optString("name"),o.optString("phone")+" • "+o.optString("note"),()->profile(o));}}if(found==0)body.addView(label("No matching saved records.",16,ink));body.addView(button("＋ Add Record",()->addRecord()));}
-              private void filesPage(){base("Photos & Documents");body.addView(label("Choose one or more files from your phone. This build opens the Android file picker; it does not perform face recognition or search the whole internet.",14,ink));body.addView(button("Select Photo / Document",()->pickFiles()));}
-              private void pickFiles(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("*/*");i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);startActivityForResult(i,PICK_FILE);}
-              @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result==RESULT_OK&&data!=null&&request==PICK_FILE){StringBuilder s=new StringBuilder();if(data.getClipData()!=null){for(int x=0;x<data.getClipData().getItemCount();x++)s.append(data.getClipData().getItemAt(x).getUri()).append("\n");}else if(data.getData()!=null)s.append(data.getData());new AlertDialog.Builder(this).setTitle("Selected file(s)").setMessage(s.toString()).setPositiveButton("OK",null).show();}if(result==RESULT_OK&&request==SPEECH){ArrayList<String>a=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(a!=null&&!a.isEmpty())search(a.get(0));}}
-              private void voice(){try{Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ur-PK");startActivityForResult(i,SPEECH);}catch(Exception e){new AlertDialog.Builder(this).setMessage("Voice input is not available.").setPositiveButton("OK",null).show();}}
-              private void help(){base("Public Help Desk");String[] topics={"NADRA / CNIC","Bank complaint","Electricity / Gas bill","Workplace complaint","Jobs / CV","Consumer complaint","Lost phone"};for(String t:topics)card(t,"Practical checklist",()->guide(t));}
-              private void guide(String topic){base(topic);String advice="Keep relevant documents, dates, receipts and reference numbers. Contact the relevant department using its verified official website or helpline. Keep your complaint reference number. Verify current rules and fees before paying.";if(topic.startsWith("Bank"))advice="Keep your transaction ID, date, amount and statement. Contact your bank using the number printed on your card or its official website. Ask for a complaint number. Never share OTP, PIN or password.";if(topic.equals("Lost phone"))advice="For your own Android phone, sign in to Google's Find Hub using the Google account already on the missing phone. You cannot reliably locate a phone by phone number or IMEI through this app.";body.addView(label(advice,16,ink));body.addView(button("Open official Google Find Hub",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://android.com/find")))));}
-              private void writer(){base("Application Writer");EditText to=field("To / Department"),subject=field("Subject"),details=field("Explain your issue");body.addView(button("Create Draft",()->{String draft="To: "+to.getText()+"\nSubject: "+subject.getText()+"\n\nRespected Sir/Madam,\n\n"+details.getText()+"\n\nKindly look into this matter and guide me regarding the necessary action.\n\nRegards,\nName: __________\nContact: __________";new AlertDialog.Builder(this).setTitle("Application Draft").setMessage(draft).setPositiveButton("Share",(d,w)->{Intent send=new Intent(Intent.ACTION_SEND);send.setType("text/plain");send.putExtra(Intent.EXTRA_TEXT,draft);startActivity(Intent.createChooser(send,"Share application"));}).setNegativeButton("Close",null).show();}));}
-              private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel(CHANNEL,"Record Manager reminders",NotificationManager.IMPORTANCE_DEFAULT);getSystemService(NotificationManager.class).createNotificationChannel(c);}}
-              private void reminders(){base("Reminders");EditText title=field("Reminder title"),minutes=field("Minutes from now (e.g. 10)");body.addView(button("Schedule Notification",()->{try{int m=Integer.parseInt(minutes.getText().toString().trim());if(m<1||m>10080)throw new Exception();Intent intent=new Intent(this,ReminderReceiver.class);intent.putExtra("title",title.getText().toString().trim());PendingIntent pi=PendingIntent.getBroadcast(this,(int)(System.currentTimeMillis()%Integer.MAX_VALUE),intent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);AlarmManager am=(AlarmManager)getSystemService(ALARM_SERVICE);am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,System.currentTimeMillis()+m*60000L,pi);new AlertDialog.Builder(this).setMessage("Reminder scheduled. Allow notifications for Record Manager in Android settings.").setPositiveButton("OK",null).show();}catch(Exception e){minutes.setError("Enter 1 to 10080 minutes");}}));}
-              private void expenses(){base("Expenses & Udhaar");EditText who=field("Person / description"),amount=field("Amount"),kind=field("I gave / I received");JSONArray entries;try{entries=new JSONArray(prefs.getString("expenses","[]"));}catch(Exception e){entries=new JSONArray();}final JSONArray old=entries;body.addView(button("Save Entry",()->{try{JSONObject o=new JSONObject();o.put("who",who.getText().toString());o.put("amount",amount.getText().toString());o.put("kind",kind.getText().toString());old.put(o);prefs.edit().putString("expenses",old.toString()).apply();body.addView(label("Saved.",14,blue));}catch(Exception ignored){}}));for(int i=0;i<entries.length();i++){JSONObject o=entries.optJSONObject(i);if(o!=null)body.addView(label(o.optString("who")+" — "+o.optString("amount")+" — "+o.optString("kind"),15,ink));}}
-              private void security(){base("Lost Phone & Security");body.addView(label("This app cannot track a phone using only its number or IMEI. Use Google's official service for your own device, if Find Hub was enabled and the device is linked to your Google account.",14,ink));body.addView(button("Find My Own Android Phone",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://android.com/find")))));}
-              private void settings(){base("Settings & Backup");body.addView(label("Records are stored locally on this phone. Cloud backup is not configured in this build.",14,ink));body.addView(button("Export My Records",()->{Intent i=new Intent(Intent.ACTION_SEND);i.setType("text/plain");i.putExtra(Intent.EXTRA_TEXT,prefs.getString("records","[]"));startActivity(Intent.createChooser(i,"Export records"));}));body.addView(button("About",()->new AlertDialog.Builder(this).setMessage("Record Manager 3.0. Local records, phone search, file picker, application drafts, expenses and reminders. Cloud sync and AI services are not connected.").setPositiveButton("OK",null).show()));}
-              private void load(){try{JSONArray a=new JSONArray(getSharedPreferences("rm",0).getString("records","[]"));for(int i=0;i<a.length();i++)records.add(a.getJSONObject(i));}catch(Exception ignored){}}
-              private void save(){JSONArray a=new JSONArray();for(JSONObject o:records)a.put(o);prefs.edit().putString("records",a.toString()).apply();}
-              @Override public void onBackPressed(){if(!"Home".equals(page))home();else new AlertDialog.Builder(this).setMessage("Exit Record Manager?").setPositiveButton("Exit",(d,w)->finish()).setNegativeButton("Stay",null).show();}
+            public void onCreate(Bundle b) {
+              super.onCreate(b);
+              store = getSharedPreferences("local_records", MODE_PRIVATE);
+              home();
+            }
+            TextView label(String s, int size, boolean bold) {
+              TextView t = new TextView(this); t.setText(s); t.setTextSize(size);
+              t.setTextColor(dark); t.setPadding(0,10,0,10);
+              if (bold) t.setTypeface(null, Typeface.BOLD);
+              return t;
+            }
+            void base(String title) {
+              ScrollView sc = new ScrollView(this);
+              page = new LinearLayout(this); page.setOrientation(1);
+              page.setPadding(20,18,20,24); sc.addView(page); setContentView(sc);
+              TextView h = label(title,25,true); h.setTextColor(green); page.addView(h);
+              page.addView(label("Public Services • Punjab",13,false));
+            }
+            Button btn(String s, Runnable r) {
+              Button b = new Button(this); b.setText(s); b.setAllCaps(false);
+              b.setTextColor(Color.WHITE);
+              b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(green));
+              b.setOnClickListener(v -> r.run());
+              page.addView(b); return b;
+            }
+            EditText input(String hint) {
+              EditText e = new EditText(this); e.setSingleLine(true); e.setHint(hint);
+              e.setTextSize(16); return e;
+            }
+            void open(String url) {
+              try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+              catch(Exception e) { Toast.makeText(this,"Browser open nahi hua",Toast.LENGTH_LONG).show(); }
+            }
+            void home() {
+              base("Public Services");
+              page.addView(label("Government information aur apne saved notes ek jagah. Official records sirf department ke portal se verify honge.",15,false));
+              btn("Vehicle Verification / E-Challan", this::vehiclePage);
+              btn("SIM Information (PTA)", () -> open("https://cnic.sims.pk/"));
+              btn("Punjab Land Records", () -> open("https://punjab-zameen.gov.pk/"));
+              btn("My Notes / Saved Records", this::notesPage);
+              btn("CNIC & OTP Information", this::identityPage);
+              page.addView(label("Note: Is first version mein government OTP/API login connected nahi. App CNIC daal kar private records khud nahi nikalti.",13,false));
+            }
+            void vehiclePage() {
+              base("Vehicle Services");
+              page.addView(label("Vehicle registration number likhein:",16,true));
+              vehicle = input("Misal: LEA-1234"); page.addView(vehicle);
+              btn("Verify Vehicle on MTMIS", () -> copyOpen("https://mtmis.excise.punjab.gov.pk/"));
+              btn("Check E-Challan", () -> copyOpen("https://echallan.psca.gop.pk/"));
+              page.addView(label("Registration number clipboard par copy hoga. Official portal par paste karein. Wahan available record mein owner, make/model, registration date, engine/chassis details check karein.",14,false));
+              page.addView(label("Engine/chassis number ko original papers aur gaari par maujood number se bhi match karein.",13,false));
+              btn("Back to Home", this::home);
+            }
+            void copyOpen(String url) {
+              String n = vehicle.getText().toString().trim();
+              if(n.isEmpty()) { Toast.makeText(this,"Pehle gaari ka number likhein",Toast.LENGTH_LONG).show(); return; }
+              ClipboardManager cm = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+              cm.setPrimaryClip(ClipData.newPlainText("Vehicle number",n));
+              Toast.makeText(this,"Number copy ho gaya; portal par paste karein",Toast.LENGTH_LONG).show();
+              open(url);
+            }
+            void identityPage() {
+              base("CNIC & OTP");
+              page.addView(label("Apna CNIC ya OTP sirf official/authorized service par enter karein. Chat mein CNIC ya OTP share na karein.",16,false));
+              page.addView(label("OTP login ke liye relevant department ki authorized API aur user-consent verification chahiye. Yeh connection abhi shamil nahi.",14,false));
+              btn("PTA SIM Information", () -> open("https://cnic.sims.pk/"));
+              btn("Back to Home", this::home);
+            }
+            void notesPage() {
+              base("My Notes / Saved Records");
+              page.addView(label("Notes is phone mein locally save honge.",14,false));
+              note = input("Apna note likhein"); page.addView(note);
+              btn("Save Note", () -> save());
+              notes = new LinearLayout(this); notes.setOrientation(1); page.addView(notes);
+              render();
+              btn("Back to Home", this::home);
+            }
+            void save() {
+              String s = note.getText().toString().trim();
+              if(s.isEmpty()) { Toast.makeText(this,"Pehle note likhein",Toast.LENGTH_SHORT).show(); return; }
+              String old = store.getString("notes","");
+              store.edit().putString("notes",s+"\n---\n"+old).apply();
+              note.setText(""); render();
+              Toast.makeText(this,"Note save ho gaya",Toast.LENGTH_SHORT).show();
+            }
+            void render() {
+              notes.removeAllViews();
+              String all = store.getString("notes","");
+              if(all.trim().isEmpty()) { notes.addView(label("Abhi koi note nahi.",14,false)); return; }
+              for(String s: all.split("\\n---\\n")) notes.addView(label("• "+s,15,false));
+            }
+            @Override public void onBackPressed() { home(); }
           }
-          JAVA
-          cat > app/src/main/java/com/recordmanager/app/ReminderReceiver.java <<'JAVA'
-          package com.recordmanager.app;
-          import android.content.BroadcastReceiver;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.app.Notification;
-          import android.app.NotificationChannel;
-          import android.app.NotificationManager;
-          import android.os.Build;
-          import androidx.core.app.NotificationCompat;
-          public class ReminderReceiver extends BroadcastReceiver {
-              @Override public void onReceive(Context context, Intent intent) {
-                  String channel="record_manager_reminders";
-                  NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
-                  if(Build.VERSION.SDK_INT>=26 && manager.getNotificationChannel(channel)==null) manager.createNotificationChannel(new NotificationChannel(channel,"Record 
+          EOF
+      - name: Build APK
+        run: gradle --no-daemon assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Public-Services-debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          
