@@ -1,143 +1,58 @@
-package com.awamguide.pakistan;
+name: Build Awam Guide Pakistan APK
 
-import android.app.*;
-import android.os.Bundle;
-import android.content.*;
-import android.graphics.Color;
-import android.net.Uri;
-import android.widget.*;
-import android.view.*;
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
-public class SimInfoActivity extends Activity {
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-    final int GREEN = Color.rgb(6,75,54);
-    final int BG = Color.rgb(246,248,246);
-    SharedPreferences prefs;
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    LinearLayout body;
-    EditText cnicField, simField;
-    TextView savedList;
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-    @Override
-    public void onCreate(Bundle state) {
-        super.onCreate(state);
-        prefs = getSharedPreferences("awam_sim_by_cnic", 0);
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(1);
-        root.setBackgroundColor(BG);
+      - name: Create Fixed Android Project
+        run: |
+          rm -rf app build gradle
+          mkdir -p app/src/main/java/com/awamguide/pakistan
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
 
-        LinearLayout top = new LinearLayout(this);
-        top.setBackgroundColor(GREEN);
-        top.setPadding(dp(10),dp(18),dp(10),dp(18));
-        Button back = new Button(this);
-        back.setText("← Back");
-        back.setTextColor(Color.WHITE);
-        back.setBackgroundColor(Color.TRANSPARENT);
-        back.setOnClickListener(v -> finish());
-        top.addView(back);
-        TextView title = new TextView(this);
-        title.setText("  SIM Against CNIC");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(18);
-        title.setTypeface(null, 1);
-        top.addView(title);
-        root.addView(top);
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "AwamGuidePakistan"
+          include ':app'
+          EOF
 
-        ScrollView scroll = new ScrollView(this);
-        body = new LinearLayout(this);
-        body.setOrientation(1);
-        body.setPadding(dp(16),dp(20),dp(16),dp(20));
-        scroll.addView(body);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF
 
-        // Fields
-        cnicField = new EditText(this);
-        cnicField.setHint("CNIC e.g. 3520212345671");
-        cnicField.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        body.addView(cnicField);
-
-        simField = new EditText(this);
-        simField.setHint("Verified SIM Number e.g. 0300XXXXXXX");
-        body.addView(simField);
-
-        Button saveBtn = new Button(this);
-        saveBtn.setText("Save SIM Against This CNIC");
-        saveBtn.setTextColor(Color.WHITE);
-        saveBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(GREEN));
-        body.addView(saveBtn);
-
-        Button viewBtn = new Button(this);
-        viewBtn.setText("Show SIMs of This CNIC");
-        viewBtn.setTextColor(GREEN);
-        body.addView(viewBtn);
-
-        // PTA Button
-        Button ptaBtn = new Button(this);
-        ptaBtn.setText("Open Official PTA Checker");
-        ptaBtn.setTextColor(Color.WHITE);
-        ptaBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(50,50,50)));
-        ptaBtn.setOnClickListener(v -> {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://cnic.sims.pk/")));
-        });
-        body.addView(ptaBtn);
-
-        TextView savedTitle = new TextView(this);
-        savedTitle.setText("\nSaved Result:");
-        savedTitle.setTextColor(GREEN);
-        savedTitle.setTypeface(null, 1);
-        body.addView(savedTitle);
-
-        savedList = new TextView(this);
-        savedList.setTextColor(Color.BLACK);
-        savedList.setPadding(dp(10),dp(12),dp(10),dp(12));
-        savedList.setBackgroundColor(Color.WHITE);
-        body.addView(savedList);
-
-        saveBtn.setOnClickListener(v -> saveSim());
-        viewBtn.setOnClickListener(v -> showSims());
-
-        setContentView(root);
-    }
-
-    void saveSim() {
-        String cnic = cnicField.getText().toString().trim();
-        String sim = simField.getText().toString().trim();
-
-        if(cnic.length() < 13){
-            Toast.makeText(this, "Valid CNIC likhein", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if(sim.isEmpty()){
-            Toast.makeText(this, "SIM Number likhein", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // ID card ke against save
-        String old = prefs.getString(cnic, "");
-        String newEntry = old + (old.isEmpty() ? "" : "\n") + "• " + sim;
-        prefs.edit().putString(cnic, newEntry).apply();
-
-        Toast.makeText(this, "CNIC " + cnic + " ke against save ho gaya", Toast.LENGTH_SHORT).show();
-        simField.setText("");
-        showSims();
-    }
-
-    void showSims() {
-        String cnic = cnicField.getText().toString().trim();
-        if(cnic.isEmpty()){
-            savedList.setText("Pehle CNIC likhein");
-            return;
-        }
-        String data = prefs.getString(cnic, "");
-        if(data.isEmpty()){
-            savedList.setText("Is CNIC (" + cnic + ") ke against koi SIM save nahi hai.");
-        } else {
-            savedList.setText("CNIC: " + cnic + "\n" + data);
-        }
-    }
-
-    int dp(int n) {
-        return (int)(n * getResources().getDisplayMetrics().density);
-    }
-}
+          cat
